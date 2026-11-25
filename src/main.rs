@@ -1,8 +1,7 @@
 use std::env;
 use std::path::Path;
 use std::process::Command;
-
-use filetime::{set_file_mtime, FileTime};
+use std::fs::{File, FileTimes};
 
 /// Check whether exiftool can be executed.
 fn exiftool_program_exists() -> bool {
@@ -46,7 +45,7 @@ fn clean_image(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Save the original modification time.
-    let original_mtime = FileTime::from_last_modification_time(&metadata);
+    let original_mtime = metadata.modified()?;
 
     println!("Cleaning: {}", path.display());
 
@@ -59,7 +58,10 @@ fn clean_image(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
     // Restore the original modification time regardless
     // of whether ExifTool succeeded or failed.
-    let restore_result = set_file_mtime(path, original_mtime);
+    let restore_result = File::open(path)
+        .and_then(|file| {
+            file.set_times(FileTimes::new().set_modified(original_mtime))
+        });
 
     match result {
         Ok(output) => {
